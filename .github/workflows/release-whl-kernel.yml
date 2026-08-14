@@ -17,6 +17,7 @@ on:
           - 'all'
           - 'cu129'
           - 'cu130'
+          - 'windows-arm64'
           - 'rocm700'
           - 'rocm720'
           - 'musa43'
@@ -219,8 +220,110 @@ jobs:
           name: wheel-python${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}${{ matrix.arch == 'aarch64' && '-aarch64' || '' }}
           path: python/sglang/kernels/aot/dist/*
 
+  build-windows-arm64:
+    if: |
+      github.repository == 'chinazhangchao/sglang-windows' &&
+      (github.event_name == 'push' || github.event.inputs.target == 'all' || github.event.inputs.target == 'cu130' || github.event.inputs.target == 'windows-arm64')
+    runs-on: windows-11-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          ref: ${{ inputs.pr_number && format('refs/pull/{0}/head', inputs.pr_number) || '' }}
+
+      # NVIDIA's Windows ARM64 CUDA/PyTorch preview currently supports CPython 3.13.
+      - name: Set up native Windows ARM64 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: arm64
+
+      - name: Install CUDA 13.4
+        shell: pwsh
+        env:
+          CUDA_INSTALLER_URL: https://packages.nvidia.com/prerelease/cuda/13.4.0/local_installers/cuda_13.4.0_windows_arm64.exe
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "cuda_13.4.0_windows_arm64.exe"
+          curl.exe --fail --location --retry 5 --output $installer $env:CUDA_INSTALLER_URL
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download the CUDA installer."
+          }
+
+          $components = @(
+            "-s",
+            "nvcc_13.4",
+            "crt_13.4",
+            "cudart_13.4",
+            "cublas_13.4",
+            "cublas_dev_13.4",
+            "thrust_13.4",
+            "nvjitlink_13.4",
+            "nvvm_13.4"
+          )
+          $process = Start-Process -FilePath $installer -ArgumentList $components -Wait -PassThru
+          if ($process.ExitCode -notin @(0, 3010)) {
+            throw "CUDA installer failed with exit code $($process.ExitCode)."
+          }
+          Remove-Item -LiteralPath $installer -Force
+
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"
+          $nvcc = Join-Path $cudaPath "bin\nvcc.exe"
+          if (-not (Test-Path $nvcc)) {
+            throw "CUDA compiler was not installed at $nvcc."
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "CUDA_PATH=$cudaPath"
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $cudaPath "bin")
+          & $nvcc --version
+
+      - name: Install Windows ARM64 PyTorch
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: `
+            --extra-index-url https://pypi.nvidia.com/nvtorch_oot_nightly `
+            torch torchvision torchaudio
+          python -c "import platform, torch; assert platform.machine().lower() == 'arm64'; assert torch.version.cuda is not None; print(f'PyTorch {torch.__version__}, CUDA {torch.version.cuda}')"
+
+      - name: Build wheel
+        shell: pwsh
+        run: |
+          .\python\sglang\kernels\aot\build_windows_arm64.ps1 `
+            -Python python `
+            -CudaArchitectures "121a" `
+            -BuildJobs 2 `
+            -NvccThreads 2
+
+      - name: Verify wheel
+        shell: pwsh
+        run: |
+          python scripts/ci/utils/verify_windows_arm64_kernel_wheel.py python/sglang/kernels/aot/dist
+          python -m pip install twine
+          $wheel = Get-ChildItem python/sglang/kernels/aot/dist/*.whl
+          python -m twine check $wheel.FullName
+
+      - name: Upload to PyPI
+        working-directory: python/sglang/kernels/aot
+        shell: pwsh
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_SGLANG_KERNEL }}
+        run: |
+          $wheel = Get-ChildItem dist/*.whl
+          python -m twine upload --skip-existing $wheel.FullName
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-python3.13-cuda13.4-windows-arm64
+          path: python/sglang/kernels/aot/dist/*
+
   release-cu130:
-    needs: build-cu130-matrix
+    needs: [build-cu130-matrix, build-windows-arm64]
+    if: |
+      always() &&
+      needs.build-windows-arm64.result == 'success' &&
+      (needs.build-cu130-matrix.result == 'success' || needs.build-cu130-matrix.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
