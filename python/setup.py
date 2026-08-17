@@ -21,10 +21,11 @@ Three filters can narrow the discovered set:
   extension. The server extension uses POSIX shared memory. An explicit
   SGLANG_BUILD_RUST_EXTS value overrides this platform default.
 - SGLANG_BUILD_RUST_EXTS env var, applied at build time on top of the above:
-  "all" builds everything, "none" builds nothing, and a comma-separated list
-  matches substrings, e.g. "grpc" matches "sglang.srt.grpc._core". It is read
-  directly from os.environ instead of sglang.srt.environ, which is not
-  importable until the package is built.
+  unset or "all" builds everything, "none" builds nothing, and a
+  comma-separated list matches substrings, e.g. "grpc" matches
+  "sglang.srt.rust_extensions._grpc". It is read directly from os.environ
+  instead of sglang.srt.environ, which is not importable until the package is
+  built.
 """
 
 import json
