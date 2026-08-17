@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import dataclasses
 import logging
+import sys
 import threading
 import time
 from collections import defaultdict
@@ -45,6 +46,11 @@ from sglang.srt.utils.network import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _disaggregation_zmq_max_sockets() -> int:
+    value = envs.SGLANG_DISAGGREGATION_ZMQ_MAX_SOCKETS.get()
+    return min(value, 4096) if sys.platform == "win32" else value
 
 
 # Reuse a keep-alive session per bootstrap_addr for decode-side bootstrap queries
@@ -200,9 +206,7 @@ class CommonKVManager(BaseKVManager):
         self._zmq_ctx = zmq.Context()
         # Raise libzmq's per-context socket cap because this manager caches two
         # sockets per decode endpoint, so large fleets can exceed the default.
-        self._zmq_ctx.set(
-            zmq.MAX_SOCKETS, envs.SGLANG_DISAGGREGATION_ZMQ_MAX_SOCKETS.get()
-        )
+        self._zmq_ctx.set(zmq.MAX_SOCKETS, _disaggregation_zmq_max_sockets())
         self.rank_port, self.server_socket = get_zmq_socket_on_host(
             self._zmq_ctx, zmq.PULL, host=self.local_ip
         )
@@ -1249,7 +1253,7 @@ class CommonKVSender(BaseKVSender):
 
 class CommonKVReceiver(BaseKVReceiver):
     _ctx = zmq.Context()
-    _ctx.set(zmq.MAX_SOCKETS, envs.SGLANG_DISAGGREGATION_ZMQ_MAX_SOCKETS.get())
+    _ctx.set(zmq.MAX_SOCKETS, _disaggregation_zmq_max_sockets())
     _socket_cache = {}
     _socket_locks = {}
     _global_lock = threading.Lock()

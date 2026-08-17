@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Verify the native Windows ARM64 SGLang wheel produced by this interpreter."""
 
 import argparse
@@ -33,15 +32,16 @@ def verify_wheel(wheel_dir: Path) -> Path:
     multimodal = [
         name
         for name in names
-        if name.startswith("sglang/srt/multimodal/_core") and name.endswith(".pyd")
+        if name.startswith("sglang/srt/rust_extensions/_multimodal")
+        and name.endswith(".pyd")
     ]
     unsupported = [
         name
         for name in names
         if name.startswith(
             (
-                "sglang/srt/grpc/_core",
-                "sglang/srt/server/_core",
+                "sglang/srt/rust_extensions/_grpc",
+                "sglang/srt/rust_extensions/_server",
             )
         )
         and name.endswith(".pyd")
@@ -70,6 +70,16 @@ def verify_wheel(wheel_dir: Path) -> Path:
         "winloop": 'sys_platform == "win32"',
     }:
         raise RuntimeError(f"unexpected event-loop dependencies: {requirement_markers}")
+
+    triton_markers = {
+        requirement.name: str(requirement.marker)
+        for requirement in requirements
+        if requirement.name in {"triton", "triton-windows"}
+    }
+    if triton_markers != {
+        "triton-windows": ('sys_platform == "win32" and platform_machine == "AMD64"'),
+    }:
+        raise RuntimeError(f"unexpected Triton dependencies: {triton_markers}")
 
     print(f"verified {wheel_path} ({version})")
     return wheel_path

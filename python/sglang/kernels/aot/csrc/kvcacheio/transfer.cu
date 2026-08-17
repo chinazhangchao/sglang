@@ -25,6 +25,31 @@
 #endif
 
 #if !defined(USE_ROCM) && !defined(USE_MUSA)
+namespace {
+#if defined(_WIN32)
+using CudaMemcpyBatchAsyncSymbol = FARPROC;
+
+CudaMemcpyBatchAsyncSymbol resolve_cuda_memcpy_batch_async() {
+  for (const char* dll_name : {"cudart64_13.dll", "cudart64_12.dll"}) {
+    if (HMODULE module = GetModuleHandleA(dll_name)) {
+      if (FARPROC symbol = GetProcAddress(module, "cudaMemcpyBatchAsync")) {
+        return symbol;
+      }
+    }
+  }
+  return nullptr;
+}
+#else
+using CudaMemcpyBatchAsyncSymbol = void*;
+
+CudaMemcpyBatchAsyncSymbol resolve_cuda_memcpy_batch_async() {
+  return dlsym(RTLD_DEFAULT, "cudaMemcpyBatchAsync");
+}
+#endif
+}  // namespace
+#endif
+
+#if !defined(USE_ROCM) && !defined(USE_MUSA)
 __device__ __forceinline__ void
 transfer_item_warp(int32_t lane_id, const void* src_addr, void* dst_addr, int64_t item_size_bytes) {
   const uint64_t* __restrict__ src = static_cast<const uint64_t*>(src_addr);
@@ -876,7 +901,7 @@ void transfer_embedding_ranges_direct(
     return;
   }
 
-  static void* cuda_memcpy_batch_async_sym = dlsym(RTLD_DEFAULT, "cudaMemcpyBatchAsync");
+  static CudaMemcpyBatchAsyncSymbol cuda_memcpy_batch_async_sym = resolve_cuda_memcpy_batch_async();
   if (cuda_memcpy_batch_async_sym == nullptr) {
     fallback_to_async_copies();
     return;
@@ -1087,20 +1112,7 @@ inline void transfer_kv_page_first_direct_impl(
   }
 
   // Symbol gate: runtime may not expose cudaMemcpyBatchAsync in some environments.
-#if defined(_WIN32)
-  static FARPROC cuda_memcpy_batch_async_sym = []() -> FARPROC {
-    for (const char* dll_name : {"cudart64_13.dll", "cudart64_12.dll"}) {
-      if (HMODULE module = GetModuleHandleA(dll_name)) {
-        if (FARPROC symbol = GetProcAddress(module, "cudaMemcpyBatchAsync")) {
-          return symbol;
-        }
-      }
-    }
-    return nullptr;
-  }();
-#else
-  static void* cuda_memcpy_batch_async_sym = dlsym(RTLD_DEFAULT, "cudaMemcpyBatchAsync");
-#endif
+  static CudaMemcpyBatchAsyncSymbol cuda_memcpy_batch_async_sym = resolve_cuda_memcpy_batch_async();
   if (cuda_memcpy_batch_async_sym == nullptr) {
     fallback_to_page_copy();
     return;

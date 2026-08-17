@@ -1,7 +1,6 @@
 # Adapted from https://github.com/openai/simple-evals/
 
 import os
-import resource
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -15,6 +14,9 @@ import openai
 import requests
 from openai import OpenAI
 from tqdm import tqdm
+
+if os.name != "nt":
+    import resource
 
 OPENAI_SYSTEM_MESSAGE_API = "You are a helpful assistant."
 OPENAI_SYSTEM_MESSAGE_CHATGPT = (
@@ -655,6 +657,9 @@ def download_dataset(path, url):
 
 
 def set_ulimit(target_soft_limit=65535):
+    if os.name == "nt":
+        return
+
     resource_type = resource.RLIMIT_NOFILE
     current_soft, current_hard = resource.getrlimit(resource_type)
 

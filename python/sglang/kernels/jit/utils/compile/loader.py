@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import logging
-import os
 import pathlib
 import shutil
 import uuid
 from typing import TYPE_CHECKING, List, Tuple
 
 import torch
+from filelock import FileLock
 
 from sglang.kernels.jit.utils.arch import get_default_target_flags
 from sglang.kernels.jit.utils.common import is_hip_runtime
@@ -186,12 +185,8 @@ def _build_lock(scope: pathlib.Path):
     one lock, never nested, and the kernel drops it if the holder dies.
     """
     scope.mkdir(parents=True, exist_ok=True)
-    handle = os.open(scope / _LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o644)
-    try:
-        fcntl.flock(handle, fcntl.LOCK_EX)
+    with FileLock(scope / _LOCK_FILE):
         yield
-    finally:
-        os.close(handle)  # releases the lock
 
 
 def _load(library: pathlib.Path) -> Module:

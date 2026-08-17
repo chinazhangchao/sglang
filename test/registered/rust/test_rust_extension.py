@@ -273,7 +273,9 @@ crate-type = ["cdylib"]
     def test_filesystem_lock_serializes_processes(self):
         with TemporaryDirectory() as directory:
             lock_path = Path(directory) / "build.lock"
-            context = multiprocessing.get_context("fork")
+            context = multiprocessing.get_context(
+                "spawn" if os.name == "nt" else "fork"
+            )
             ready = context.Event()
             release = context.Event()
             process = context.Process(
@@ -281,7 +283,8 @@ crate-type = ["cdylib"]
                 args=(os.fspath(lock_path), ready, release),
             )
             process.start()
-            self.assertTrue(ready.wait(timeout=5))
+            process_timeout = 30 if os.name == "nt" else 5
+            self.assertTrue(ready.wait(timeout=process_timeout))
 
             acquired = threading.Event()
 
@@ -296,8 +299,8 @@ crate-type = ["cdylib"]
                 self.assertFalse(acquired.is_set())
             finally:
                 release.set()
-                process.join(timeout=5)
-                thread.join(timeout=5)
+                process.join(timeout=process_timeout)
+                thread.join(timeout=process_timeout)
             self.assertEqual(process.exitcode, 0)
             self.assertTrue(acquired.is_set())
 

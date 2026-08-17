@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import importlib
 import importlib.util
@@ -20,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Iterator, Literal
+
+from filelock import FileLock
 
 try:
     import tomllib
@@ -319,12 +320,8 @@ def _cached_extension_path(
 @contextmanager
 def _filesystem_lock(path: Path) -> Iterator[None]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    with FileLock(path):
+        yield
 
 
 def _cargo_build(crate: _CrateSpec, target_dir: Path) -> Path:

@@ -1,6 +1,5 @@
 import json
 import os
-import resource
 from json import JSONDecodeError
 from typing import Dict, List, Optional, Union
 
@@ -12,6 +11,9 @@ from transformers import (
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
 )
+
+if os.name != "nt":
+    import resource
 
 
 def remove_prefix(text: str, prefix: str) -> str:
@@ -146,6 +148,9 @@ def is_file_valid_json(path):
 
 
 def set_ulimit(target_soft_limit=65535):
+    if os.name == "nt":
+        return
+
     resource_type = resource.RLIMIT_NOFILE
     current_soft, current_hard = resource.getrlimit(resource_type)
 

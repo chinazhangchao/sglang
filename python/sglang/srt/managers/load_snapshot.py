@@ -38,23 +38,32 @@ PULL socket (only one can bind); the other reads plain SHM.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import logging
 import mmap
 import os
 import struct
+import tempfile
 from contextlib import contextmanager
 from typing import Optional
 
 import msgspec
 import msgspec.msgpack
 import msgspec.structs
+from filelock import FileLock
 
 from sglang.srt.environ import envs
 from sglang.srt.utils.network import is_zmq_endpoint_ipv6
 
 logger = logging.getLogger(__name__)
+
+if os.name == "nt":
+    LOCK_EX = LOCK_SH = 0
+else:
+    import fcntl
+
+    LOCK_EX = fcntl.LOCK_EX
+    LOCK_SH = fcntl.LOCK_SH
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -275,7 +284,12 @@ SLOT_SIZE = 16 * 1024
 
 
 @contextmanager
-def file_lock(fd: int, lock_type: int):
+def file_lock(fd: int, lock_type: int, path: str):
+    if os.name == "nt":
+        with FileLock(f"{path}.lock"):
+            yield
+        return
+
     fcntl.flock(fd, lock_type)
     try:
         yield
@@ -287,7 +301,10 @@ def shm_path_for(ipc_name: str) -> str:
     name = os.path.basename(ipc_name.rstrip("/")) or "default"
     safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
     digest = hashlib.blake2s(ipc_name.encode(), digest_size=4).hexdigest()
-    return f"/dev/shm/sglang_loads_{safe_name}_{digest}.shm"
+    filename = f"sglang_loads_{safe_name}_{digest}.shm"
+    if os.name == "nt":
+        return os.path.join(tempfile.gettempdir(), filename)
+    return f"/dev/shm/{filename}"
 
 
 def file_size(dp_size: int, slot_size: int = SLOT_SIZE) -> int:
@@ -321,7 +338,7 @@ class ShmLoadSnapshotWriter:
 
         self.fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
         try:
-            with file_lock(self.fd, fcntl.LOCK_EX):
+            with file_lock(self.fd, LOCK_EX, self.path):
                 os.ftruncate(self.fd, size)
                 self.mmap = mmap.mmap(self.fd, size, access=mmap.ACCESS_WRITE)
                 HEADER_STRUCT.pack_into(
@@ -339,7 +356,7 @@ class ShmLoadSnapshotWriter:
                 f"snapshot dp_rank={snapshot.dp_rank} does not match writer dp_rank={self.dp_rank}"
             )
 
-        with file_lock(self.fd, fcntl.LOCK_EX):
+        with file_lock(self.fd, LOCK_EX, self.path):
             self._write_payload(snapshot)
 
     def _write_payload(self, snapshot: LoadSnapshot) -> None:
@@ -439,7 +456,7 @@ class ShmLoadSnapshotReader:
             return False
 
         try:
-            with file_lock(fd, fcntl.LOCK_SH):
+            with file_lock(fd, LOCK_SH, self.path):
                 mapped = mmap.mmap(fd, size, access=mmap.ACCESS_READ)
                 magic, version, dp_size, slot_size = HEADER_STRUCT.unpack_from(
                     mapped, 0
@@ -474,7 +491,7 @@ class ShmLoadSnapshotReader:
             return None
 
         assert self.fd is not None
-        with file_lock(self.fd, fcntl.LOCK_SH):
+        with file_lock(self.fd, LOCK_SH, self.path):
             return self._read_slot(dp_rank)
 
     def _read_slot(self, dp_rank: int) -> Optional[LoadSnapshot]:
@@ -498,7 +515,7 @@ class ShmLoadSnapshotReader:
             return []
 
         assert self.fd is not None
-        with file_lock(self.fd, fcntl.LOCK_SH):
+        with file_lock(self.fd, LOCK_SH, self.path):
             loads = []
             for r in range(self.dp_size):
                 load = self._read_slot(r)

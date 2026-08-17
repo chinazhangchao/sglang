@@ -2,7 +2,6 @@
 
 import importlib.metadata
 import os
-import resource
 import subprocess
 import sys
 from abc import abstractmethod
@@ -11,6 +10,9 @@ from collections import OrderedDict, defaultdict
 import torch
 
 from sglang.srt.utils import is_hip, is_mps, is_musa, is_npu
+
+if os.name != "nt":
+    import resource
 
 
 def is_cuda_v2():
@@ -24,7 +26,7 @@ PACKAGE_LIST = [
     "flashinfer_python",
     "flashinfer_cubin",
     "flashinfer_jit_cache",
-    "triton",
+    "triton-windows" if sys.platform == "win32" else "triton",
     "transformers",
     "torchao",
     "numpy",
@@ -120,6 +122,9 @@ class BaseEnv:
             return {}
 
     def get_ulimit_soft(self) -> dict:
+        if os.name == "nt":
+            return {"ulimit soft": "N/A"}
+
         ulimit_soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
         return {"ulimit soft": ulimit_soft}
 
