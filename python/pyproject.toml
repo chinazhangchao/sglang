@@ -67,6 +67,7 @@ dependencies = [
   "prometheus-client>=0.20.0",
   "psutil",
   "py-spy ; sys_platform != 'win32'",
+  "pyarrow==23.0.0.dev0 ; sys_platform == 'win32' and platform_machine == 'ARM64'",
   "pybase64",
   "pydantic",
   "python-multipart",
@@ -96,8 +97,9 @@ dependencies = [
   "torchvision==0.29.0a0+10f68db ; sys_platform == 'win32' and platform_machine == 'ARM64'",
   "tqdm",
   "transformers==5.12.1",
-  # Public triton-windows wheels are win_amd64-only; ARM64 can install one separately.
+  # Public triton-windows wheels are win_amd64-only; the Windows ARM64 wheelhouse supplies the pinned build below.
   "triton-windows>=3.7,<3.8 ; sys_platform == 'win32' and platform_machine == 'AMD64'",
+  "triton-windows==3.8.0+gite89ef7d6 ; sys_platform == 'win32' and platform_machine == 'ARM64'",
   "uvicorn",
   "uvloop ; sys_platform != 'win32'",
   "watchfiles",

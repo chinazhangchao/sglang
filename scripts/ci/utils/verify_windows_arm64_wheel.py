@@ -71,15 +71,28 @@ def verify_wheel(wheel_dir: Path) -> Path:
     }:
         raise RuntimeError(f"unexpected event-loop dependencies: {requirement_markers}")
 
-    triton_markers = {
-        requirement.name: str(requirement.marker)
+    triton_requirements = {
+        (
+            requirement.name,
+            str(requirement.specifier),
+            str(requirement.marker),
+        )
         for requirement in requirements
         if requirement.name in {"triton", "triton-windows"}
     }
-    if triton_markers != {
-        "triton-windows": ('sys_platform == "win32" and platform_machine == "AMD64"'),
+    if triton_requirements != {
+        (
+            "triton-windows",
+            "<3.8,>=3.7",
+            'sys_platform == "win32" and platform_machine == "AMD64"',
+        ),
+        (
+            "triton-windows",
+            "==3.8.0+gite89ef7d6",
+            'sys_platform == "win32" and platform_machine == "ARM64"',
+        ),
     }:
-        raise RuntimeError(f"unexpected Triton dependencies: {triton_markers}")
+        raise RuntimeError(f"unexpected Triton dependencies: {triton_requirements}")
 
     print(f"verified {wheel_path} ({version})")
     return wheel_path
