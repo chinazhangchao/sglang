@@ -41,7 +41,7 @@ PACKAGE_LIST = [
     "python-multipart",
     "pyzmq",
     "uvicorn",
-    "uvloop",
+    "winloop" if sys.platform == "win32" else "uvloop",
     "vllm",
     "xgrammar",
     "openai",

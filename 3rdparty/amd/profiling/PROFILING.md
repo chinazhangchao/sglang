@@ -220,7 +220,7 @@ index 2621ccd..181df85 100644
 +rpdTracerControl.skipCreate()
 +
 +
- asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+ install_event_loop()
 
  logger = logging.getLogger(__name__)
 @@ -514,10 +518,20 @@ class TokenizerManager:

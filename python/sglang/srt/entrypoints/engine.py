@@ -47,7 +47,6 @@ from typing import (
 )
 
 import torch
-import uvloop
 import zmq
 
 from sglang.srt.elastic_ep.expert_backup_manager import run_expert_backup_manager
@@ -116,6 +115,7 @@ from sglang.srt.utils import (
     set_prometheus_multiproc_dir,
     set_ulimit,
 )
+from sglang.srt.utils.event_loop import install_event_loop
 from sglang.srt.utils.msgspec_utils import msgspec_to_builtins
 from sglang.srt.utils.network import (
     NetworkAddress,
@@ -128,7 +128,7 @@ from sglang.srt.utils.watchdog import SubprocessWatchdog
 from sglang.version import __version__
 
 logger = logging.getLogger(__name__)
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+install_event_loop()
 
 _is_cuda = is_cuda()
 

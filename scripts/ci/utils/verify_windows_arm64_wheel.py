@@ -7,6 +7,8 @@ import zipfile
 from email.parser import Parser
 from pathlib import Path
 
+from packaging.requirements import Requirement
+
 
 def verify_wheel(wheel_dir: Path) -> Path:
     wheels = list(wheel_dir.glob("*.whl"))
@@ -54,6 +56,20 @@ def verify_wheel(wheel_dir: Path) -> Path:
     version = metadata["Version"]
     if not version or version.startswith("0.0.0"):
         raise RuntimeError(f"setuptools-scm produced an invalid version: {version}")
+
+    requirements = [
+        Requirement(value) for value in metadata.get_all("Requires-Dist", [])
+    ]
+    requirement_markers = {
+        requirement.name: str(requirement.marker)
+        for requirement in requirements
+        if requirement.name in {"uvloop", "winloop"}
+    }
+    if requirement_markers != {
+        "uvloop": 'sys_platform != "win32"',
+        "winloop": 'sys_platform == "win32"',
+    }:
+        raise RuntimeError(f"unexpected event-loop dependencies: {requirement_markers}")
 
     print(f"verified {wheel_path} ({version})")
     return wheel_path

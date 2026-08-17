@@ -45,7 +45,6 @@ import numpy as np
 import orjson
 import requests
 import uvicorn
-import uvloop
 from fastapi import (
     Body,
     Depends,
@@ -175,6 +174,11 @@ from sglang.srt.utils import (
     set_uvicorn_logging_configs,
 )
 from sglang.srt.utils.auth import AuthLevel, app_has_admin_force_endpoints, auth_level
+from sglang.srt.utils.event_loop import (
+    EVENT_LOOP_CONFIG,
+    install_event_loop,
+    run_event_loop,
+)
 from sglang.srt.utils.json_response import (
     SGLangORJSONResponse,
     dumps_json,
@@ -186,7 +190,7 @@ from sglang.utils import get_exception_traceback
 from sglang.version import __version__
 
 logger = logging.getLogger(__name__)
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+install_event_loop()
 
 # Global constants
 HEALTH_CHECK_TIMEOUT = int(os.getenv("SGLANG_HEALTH_CHECK_TIMEOUT", 20))
@@ -2409,8 +2413,8 @@ def _run_granian_server(
     serves the live ``app`` object directly and reuses the already-initialized
     global state (tokenizer manager, templates, ...) through the normal
     single-tokenizer lifespan path -- no shared memory or worker re-init needed.
-    The event loop is uvloop. The default backlog and backpressure values are set
-    exactly like uvicorn's defaults.
+    The platform's accelerated event loop is used. The default backlog and
+    backpressure values are set exactly like uvicorn's defaults.
     """
     import signal
 
@@ -2444,7 +2448,7 @@ def _run_granian_server(
 
     if tokenizer_worker_num > 1:
         granian_kwargs["workers"] = tokenizer_worker_num
-        granian_kwargs["loop"] = Loops.uvloop
+        granian_kwargs["loop"] = getattr(Loops, EVENT_LOOP_CONFIG.granian_loop)
 
     server = Server(**granian_kwargs)
 
@@ -2461,7 +2465,7 @@ def _run_granian_server(
                     pass
             await server.serve()
 
-        uvloop.run(serve())
+        run_event_loop(serve())
     else:
         server.serve()
 
@@ -2579,7 +2583,7 @@ def _setup_and_run_http_server(
                     root_path=server_args.fastapi_root_path,
                     log_level=server_args.log_level_http or server_args.log_level,
                     timeout_keep_alive=envs.SGLANG_TIMEOUT_KEEP_ALIVE.get(),
-                    loop="uvloop",
+                    loop=EVENT_LOOP_CONFIG.uvicorn_loop,
                     ssl_keyfile=server_args.ssl_keyfile,
                     ssl_certfile=server_args.ssl_certfile,
                     ssl_ca_certs=server_args.ssl_ca_certs,
@@ -2616,7 +2620,7 @@ def _setup_and_run_http_server(
                     root_path=server_args.fastapi_root_path,
                     log_level=server_args.log_level_http or server_args.log_level,
                     timeout_keep_alive=envs.SGLANG_TIMEOUT_KEEP_ALIVE.get(),
-                    loop="uvloop",
+                    loop=EVENT_LOOP_CONFIG.uvicorn_loop,
                     ssl_keyfile=server_args.ssl_keyfile,
                     ssl_certfile=server_args.ssl_certfile,
                     ssl_ca_certs=server_args.ssl_ca_certs,
@@ -2666,7 +2670,7 @@ def _setup_and_run_http_server(
                     log_level=server_args.log_level_http or server_args.log_level,
                     timeout_keep_alive=envs.SGLANG_TIMEOUT_KEEP_ALIVE.get(),
                     timeout_worker_healthcheck=envs.SGLANG_UVICORN_WORKER_HEALTHCHECK_TIMEOUT.get(),
-                    loop="uvloop",
+                    loop=EVENT_LOOP_CONFIG.uvicorn_loop,
                     workers=server_args.tokenizer_worker_num,
                     ssl_keyfile=server_args.ssl_keyfile,
                     ssl_certfile=server_args.ssl_certfile,

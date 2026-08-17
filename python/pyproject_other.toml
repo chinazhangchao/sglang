@@ -63,7 +63,8 @@ runtime_base = [
   "tqdm",
   "transformers==5.12.1",
   "uvicorn",
-  "uvloop",
+  "uvloop ; sys_platform != 'win32'",
+  "winloop>=0.6.3 ; sys_platform == 'win32'",
   "xxhash",
 ]
 
