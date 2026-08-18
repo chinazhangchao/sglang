@@ -141,6 +141,14 @@ def init_torch_distributed(
 
 def _resolve_backend(*, device: str, server_args: ServerArgs) -> str:
     backend = get_default_distributed_backend(device)
+    if (
+        device == "cuda"
+        and os.name == "nt"
+        and backend == "nccl"
+        and not dist.is_nccl_available()
+    ):
+        logger.warning("NCCL is unavailable on Windows; using Gloo.")
+        backend = "gloo"
     if device == "cuda" and server_args.elastic_ep_backend == "mooncake":
         backend = "mooncake"
     return backend
@@ -158,9 +166,12 @@ def _resolve_dist_init_method(*, server_args: ServerArgs, dist_port: int) -> str
         na = NetworkAddress.parse(server_args.dist_init_addr)
         dist_init_method = na.to_tcp()
     else:
-        dist_init_method = NetworkAddress(
-            server_args.host or "127.0.0.1", dist_port
-        ).to_tcp()
+        host = server_args.host or "127.0.0.1"
+        if host == "0.0.0.0":
+            host = "127.0.0.1"
+        elif host == "::":
+            host = "::1"
+        dist_init_method = NetworkAddress(host, dist_port).to_tcp()
     return dist_init_method
 
 

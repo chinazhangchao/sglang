@@ -127,6 +127,7 @@ from sglang.srt.server_args import (
     set_global_server_args_for_tokenizer,
 )
 from sglang.srt.utils import (
+    PROCESS_FAILURE_SIGNAL,
     configure_gc_warning,
     freeze_gc,
     get_bool_env_var,
@@ -2190,11 +2191,22 @@ class TokenizerManager(TokenizerControlMixin, TokenizerManagerScoreMixin):
         # due to the CPython limitation.
         if threading.current_thread() is threading.main_thread():
             signal_handler = self.signal_handler_class(self)
-            loop.add_signal_handler(signal.SIGTERM, signal_handler.sigterm_handler)
-            # Update the signal handler for the process. It overrides the sigquit handler in the launch phase.
-            loop.add_signal_handler(
-                signal.SIGQUIT, signal_handler.running_phase_sigquit_handler
-            )
+            signal_handlers = [(signal.SIGTERM, signal_handler.sigterm_handler)]
+            if PROCESS_FAILURE_SIGNAL is not None:
+                # Override the launch-phase handler after the server is running.
+                signal_handlers.append(
+                    (
+                        PROCESS_FAILURE_SIGNAL,
+                        signal_handler.running_phase_sigquit_handler,
+                    )
+                )
+            for sig, handler in signal_handlers:
+                try:
+                    loop.add_signal_handler(sig, handler)
+                except (NotImplementedError, RuntimeError, ValueError):
+                    logger.debug(
+                        "Event loop signal handlers are unavailable on this platform."
+                    )
 
         self.asyncio_tasks.add(
             loop.create_task(print_exception_wrapper(self.sigterm_watchdog))

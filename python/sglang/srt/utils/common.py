@@ -107,6 +107,7 @@ if TYPE_CHECKING:
     from sglang.srt.server_args import ServerArgs
 
 logger = logging.getLogger(__name__)
+PROCESS_FAILURE_SIGNAL = getattr(signal, "SIGQUIT", None)
 torch_release = pkg_version.parse(torch.__version__).release
 
 
@@ -2262,13 +2263,23 @@ def kill_process_tree(
 
             # Sometime processes cannot be killed with SIGKILL (e.g, PID=1 launched by kubernetes),
             # so we send an additional signal to kill them.
-            itself.send_signal(signal.SIGQUIT)
+            if PROCESS_FAILURE_SIGNAL is not None:
+                itself.send_signal(PROCESS_FAILURE_SIGNAL)
             killed.append(itself)
         except psutil.NoSuchProcess:
             pass
 
     if wait_timeout is not None and killed:
         _wait_for_reap_or_raise(killed, wait_timeout)
+
+
+def request_process_tree_cleanup(parent_pid: int) -> None:
+    if os.name == "nt":
+        kill_process_tree(parent_pid)
+        return
+
+    assert PROCESS_FAILURE_SIGNAL is not None
+    os.kill(parent_pid, PROCESS_FAILURE_SIGNAL)
 
 
 def monkey_patch_p2p_access_check():

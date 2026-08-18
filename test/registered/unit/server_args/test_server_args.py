@@ -981,10 +981,7 @@ class TestContextParallelServerArgs(CustomTestCase):
 
 
 class TestPortArgs(unittest.TestCase):
-    @patch("sglang.srt.server_args.tempfile.NamedTemporaryFile")
-    def test_init_new_standard_case(self, mock_temp_file):
-        mock_temp_file.return_value.name = "temp_file"
-
+    def test_init_new_standard_case(self):
         server_args = ServerArgs(model_path="dummy")
         server_args.port = 30000
         server_args.nccl_port = None
@@ -992,15 +989,13 @@ class TestPortArgs(unittest.TestCase):
 
         port_args = PortArgs.init_new(server_args)
 
-        self.assertTrue(port_args.tokenizer_ipc_name.startswith("ipc://"))
-        self.assertTrue(port_args.scheduler_input_ipc_name.startswith("ipc://"))
-        self.assertTrue(port_args.detokenizer_ipc_name.startswith("ipc://"))
+        expected_prefix = "tcp://127.0.0.1:" if os.name == "nt" else "ipc://"
+        self.assertTrue(port_args.tokenizer_ipc_name.startswith(expected_prefix))
+        self.assertTrue(port_args.scheduler_input_ipc_name.startswith(expected_prefix))
+        self.assertTrue(port_args.detokenizer_ipc_name.startswith(expected_prefix))
         self.assertIsInstance(port_args.nccl_port, int)
 
-    @patch("sglang.srt.server_args.tempfile.NamedTemporaryFile")
-    def test_init_new_builds_decoupled_spec_ipc_config(self, mock_temp_file):
-        mock_temp_file.return_value.name = "temp_file"
-
+    def test_init_new_builds_decoupled_spec_ipc_config(self):
         server_args = ServerArgs(model_path="dummy")
         server_args.nccl_port = None
         server_args.enable_dp_attention = False
@@ -1020,10 +1015,7 @@ class TestPortArgs(unittest.TestCase):
             port_args.decoupled_spec_ipc_config.connect_endpoints, ("ipc:///tmp/d",)
         )
 
-    @patch("sglang.srt.server_args.tempfile.NamedTemporaryFile")
-    def test_init_new_no_decoupled_config_when_role_null(self, mock_temp_file):
-        mock_temp_file.return_value.name = "temp_file"
-
+    def test_init_new_no_decoupled_config_when_role_null(self):
         server_args = ServerArgs(model_path="dummy")
         server_args.nccl_port = None
         server_args.enable_dp_attention = False
@@ -1060,6 +1052,14 @@ class TestPortArgs(unittest.TestCase):
         )
         self.assertTrue(port_args.detokenizer_ipc_name.startswith("tcp://127.0.0.1:"))
         self.assertIsInstance(port_args.nccl_port, int)
+
+    @patch("sglang.srt.server_args.os.name", "nt")
+    def test_init_new_rejects_multiple_workers_on_windows(self):
+        server_args = ServerArgs(model_path="dummy")
+        server_args.tokenizer_worker_num = 2
+
+        with self.assertRaisesRegex(ValueError, "not supported on Windows"):
+            PortArgs.init_new(server_args)
 
     def test_init_new_with_dp_rank(self):
         server_args = ServerArgs(model_path="dummy")

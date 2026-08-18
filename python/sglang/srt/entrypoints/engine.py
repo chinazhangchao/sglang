@@ -101,6 +101,7 @@ from sglang.srt.plugins import load_plugins
 from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.utils import (
     MultiprocessingSerializer,
+    PROCESS_FAILURE_SIGNAL,
     SerializedTensorPayload,
     assert_pkg_version,
     configure_logger,
@@ -1686,7 +1687,9 @@ def _set_envs_and_config(server_args: ServerArgs):
 
     # Signal handlers can only be registered from the main thread.
     if threading.current_thread() is threading.main_thread():
-        if server_args.custom_sigquit_handler is None:
+        if PROCESS_FAILURE_SIGNAL is None:
+            logger.warning("SIGQUIT cleanup handlers are unavailable on this platform.")
+        elif server_args.custom_sigquit_handler is None:
             # Register the signal handler.
             # The child processes will send SIGQUIT to this process when any error happens
             # This process then clean up the whole process tree
@@ -1698,13 +1701,13 @@ def _set_envs_and_config(server_args: ServerArgs):
                 )
                 kill_process_tree(os.getpid())
 
-            signal.signal(signal.SIGQUIT, launch_phase_sigquit_handler)
+            signal.signal(PROCESS_FAILURE_SIGNAL, launch_phase_sigquit_handler)
         else:
             # Allow users to register a custom SIGQUIT handler for things like crash dump
             logger.error(
                 f"Using custom SIGQUIT handler: {server_args.custom_sigquit_handler}"
             )
-            signal.signal(signal.SIGQUIT, server_args.custom_sigquit_handler)
+            signal.signal(PROCESS_FAILURE_SIGNAL, server_args.custom_sigquit_handler)
     else:
         logger.warning(
             "Signal handler is not added because the engine is not in the "

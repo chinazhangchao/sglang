@@ -100,7 +100,11 @@ from sglang.srt.utils.common import (
     torch_release,
 )
 from sglang.srt.utils.hf_transformers_utils import check_gguf_file
-from sglang.srt.utils.network import NetworkAddress, get_free_port, wait_port_available
+from sglang.srt.utils.network import (
+    NetworkAddress,
+    get_free_port,
+    wait_port_available,
+)
 from sglang.srt.utils.runai_utils import ObjectStorageModel, is_runai_obj_uri
 from sglang.srt.utils.tensor_bridge import use_mlx
 from sglang.utils import is_in_ci
@@ -9796,6 +9800,14 @@ class PortArgs:
         else:
             nccl_port = server_args.nccl_port
 
+        if os.name == "nt" and (
+            server_args.tokenizer_worker_num != 1
+            or server_args.detokenizer_worker_num != 1
+        ):
+            raise ValueError(
+                "Multiple tokenizer or detokenizer workers are not supported on Windows."
+            )
+
         if server_args.tokenizer_worker_num == 1:
             tokenizer_worker_ipc_name = None
         else:
@@ -9823,7 +9835,7 @@ class PortArgs:
                 rank=int(server_args.decoupled_spec_rank),
             )
 
-        if not server_args.enable_dp_attention:
+        if not server_args.enable_dp_attention and os.name != "nt":
             # Normal case, use IPC within a single node
             return PortArgs(
                 tokenizer_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
@@ -9837,7 +9849,7 @@ class PortArgs:
                 instance_id=instance_id,
             )
         else:
-            # DP attention. Use TCP + port to handle both single-node and multi-node.
+            # DP attention and Windows use TCP; pyzmq does not support IPC on Windows.
             if server_args.nnodes == 1 and server_args.dist_init_addr is None:
                 derived_port = server_args.port + ZMQ_TCP_PORT_DELTA
                 if derived_port > 65535:

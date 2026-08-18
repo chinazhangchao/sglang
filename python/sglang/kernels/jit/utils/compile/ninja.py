@@ -26,6 +26,8 @@ import shlex
 import subprocess
 from typing import List
 
+import ninja as ninja_package
+
 from sglang.kernels.jit.utils.compile import toolchain
 from sglang.kernels.jit.utils.compile.spec import BuildSpec
 
@@ -33,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 _BUILD_FILE = "build.ninja"
 _NINJA_TIMEOUT_S = 1800
+
+
+def _ninja_executable() -> str:
+    executable = pathlib.Path(ninja_package.BIN_DIR) / (
+        "ninja.exe" if os.name == "nt" else "ninja"
+    )
+    return str(executable) if executable.is_file() else "ninja"
 
 
 def _escape(path: str) -> str:
@@ -152,7 +161,7 @@ def build(*, spec: BuildSpec, build_dir: pathlib.Path, build_file: str) -> pathl
             (build_dir / unit.filename).write_text(unit.source)
     (build_dir / _BUILD_FILE).write_text(build_file)
 
-    command = ["ninja", "-f", _BUILD_FILE]
+    command = [_ninja_executable(), "-f", _BUILD_FILE]
     jobs = os.environ.get("MAX_JOBS")
     if jobs:
         command += ["-j", jobs]

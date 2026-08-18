@@ -15,7 +15,6 @@
 
 import multiprocessing as mp
 import os
-import signal
 import threading
 import time
 import unittest.mock
@@ -47,19 +46,14 @@ def noop_worker():
 
 class TestSubprocessWatchdog(CustomTestCase):
     def setUp(self):
-        self.sigquit_triggered = threading.Event()
+        self.cleanup_triggered = threading.Event()
         self._procs = []
         self._monitor = None
 
-        original_kill = os.kill
-
-        def mock_kill(pid, sig):
-            if sig == signal.SIGQUIT:
-                self.sigquit_triggered.set()
-            else:
-                original_kill(pid, sig)
-
-        self._patcher = unittest.mock.patch("os.kill", side_effect=mock_kill)
+        self._patcher = unittest.mock.patch(
+            "sglang.srt.utils.watchdog.request_process_tree_cleanup",
+            side_effect=lambda _pid: self.cleanup_triggered.set(),
+        )
         self._patcher.start()
 
     def tearDown(self):
@@ -92,37 +86,48 @@ class TestSubprocessWatchdog(CustomTestCase):
         proc = self._spawn(healthy_worker)
         self._watch(proc)
         time.sleep(0.5)
-        self.assertFalse(self.sigquit_triggered.is_set())
+        self.assertFalse(self.cleanup_triggered.is_set())
 
+    def test_crashed_process_requests_cleanup(self):
+        proc = unittest.mock.MagicMock(pid=123, exitcode=1)
+        proc.is_alive.return_value = False
+        monitor = SubprocessWatchdog([proc])
+
+        self.assertTrue(monitor._check_processes())
+        self.assertTrue(self.cleanup_triggered.is_set())
+
+    @unittest.skipIf(os.name == "nt", "requires POSIX multiprocessing semantics")
     def test_crashed_process_triggers_sigquit(self):
         proc = self._spawn(slow_crash_worker, args=(0.2,))
         self._watch(proc)
         self.assertTrue(
-            self.sigquit_triggered.wait(timeout=5.0),
-            "SIGQUIT was not triggered within timeout",
+            self.cleanup_triggered.wait(timeout=5.0),
+            "Process-tree cleanup was not triggered within timeout",
         )
 
+    @unittest.skipIf(os.name == "nt", "requires POSIX multiprocessing semantics")
     def test_immediate_crash_detection(self):
         proc = self._spawn(crashing_worker)
         self._watch(proc, interval=0.05)
         self.assertTrue(
-            self.sigquit_triggered.wait(timeout=5.0),
+            self.cleanup_triggered.wait(timeout=5.0),
             "Immediate crash was not detected",
         )
 
+    @unittest.skipIf(os.name == "nt", "requires POSIX multiprocessing semantics")
     def test_multiple_processes_one_crashes(self):
         healthy = self._spawn(healthy_worker)
         crashing = self._spawn(slow_crash_worker, args=(0.2,))
         self._watch([healthy, crashing], names=["healthy", "crashing"])
         self.assertTrue(
-            self.sigquit_triggered.wait(timeout=5.0),
+            self.cleanup_triggered.wait(timeout=5.0),
             "Crash was not detected when one of multiple processes crashed",
         )
 
     def test_empty_processes_list(self):
         self._watch([], interval=0.1)
         time.sleep(0.3)
-        self.assertFalse(self.sigquit_triggered.is_set())
+        self.assertFalse(self.cleanup_triggered.is_set())
 
     def test_normal_exit_no_sigquit(self):
         proc = self._spawn(noop_worker)
@@ -130,8 +135,8 @@ class TestSubprocessWatchdog(CustomTestCase):
         self._watch(proc)
         time.sleep(0.3)
         self.assertFalse(
-            self.sigquit_triggered.is_set(),
-            "SIGQUIT should not be triggered for normal exit (exitcode=0)",
+            self.cleanup_triggered.is_set(),
+            "Process-tree cleanup should not be triggered for normal exit",
         )
 
 

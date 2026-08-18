@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import sys
 from abc import ABC, abstractmethod
 from typing import (
     AbstractSet,
@@ -227,6 +228,8 @@ def get_fused_op_backend() -> Optional[KernelBackend]:
         from sglang.srt.environ import envs
 
         value = envs.SGLANG_FORCE_FUSED_OP_BACKEND.get()
+        if value is None and sys.platform == "win32":
+            value = KernelBackend.TORCH.value
         _forced_backend = KernelBackend(value) if value is not None else None
     return _forced_backend
 

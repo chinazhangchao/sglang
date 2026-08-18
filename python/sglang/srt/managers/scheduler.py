@@ -307,6 +307,7 @@ from sglang.srt.utils import (
     is_hip,
     is_mps,
     kill_itself_when_parent_died,
+    request_process_tree_cleanup,
     require_mlp_sync,
     set_gpu_proc_affinity,
     set_random_seed,
@@ -5064,7 +5065,7 @@ def run_scheduler_process(
     except Exception:
         traceback = get_exception_traceback()
         logger.error(f"Scheduler hit an exception: {traceback}")
-        parent_process.send_signal(signal.SIGQUIT)
+        request_process_tree_cleanup(parent_process.pid)
         # Opt-in: SIGKILL the pgroup so sibling ranks don't spew thousands
         # of NCCL/TCPStore tracebacks before they finally die.
         if envs.SGLANG_KILLPG_ON_SCHEDULER_EXCEPTION.get():
