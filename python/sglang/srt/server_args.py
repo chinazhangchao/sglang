@@ -2363,7 +2363,7 @@ class ServerArgs:
     ] = "auto"
     fuseep_mode: A[
         Literal[1, 2],
-        "Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode is executed；2 -> dispatch_ffn_combine is executed (support hybrid deployment when 2).",
+        "Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode is executed; 2 -> dispatch_ffn_combine is executed (support hybrid deployment when 2).",
         NS("exec.moe"),
     ] = 2
     deepep_dispatcher_output_dtype: A[
