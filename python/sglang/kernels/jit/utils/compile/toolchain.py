@@ -69,6 +69,8 @@ def host_compiler_path() -> str:
     nvcc dispatches all host code to it, so its version decides both which
     system headers are pulled in and how that half is codegen'd.
     """
+    if os.name == "nt":
+        return os.environ.get("CXX", device_compiler_path())
     return os.environ.get("CXX", "c++")
 
 

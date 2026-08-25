@@ -90,6 +90,9 @@ if _is_hip:
             # Fallback: vllm not available, will use native PyTorch implementation
             _has_vllm = False
 
+if os.name == "nt":
+    _has_vllm = False
+
 if _is_musa:
 
     @register_fake_if_exists("sgl_kernel::sgl_per_token_group_quant_8bit_v2")
@@ -272,7 +275,7 @@ def _per_token_group_quant_8bit_raw(
     ), "the last dimension of `x` cannot be divisible by `group_size`"
     assert x.is_contiguous(), "`x` is not contiguous"
 
-    if _is_hip:
+    if _is_hip or os.name == "nt":
         if dtype == torch.int8:
             bit8_max = 127.0
         else:
@@ -1754,7 +1757,7 @@ Returns:
 Raises:
     AssertionError: If input is not 2D or if static scale's numel != 1
 """
-if _is_hip:
+if _is_hip or os.name == "nt":
 
     def _native_dynamic_per_token_quant_fp8(output, input, scale):
         """Native PyTorch fallback for dynamic per-token FP8 quantization when vLLM is unavailable."""
@@ -1826,7 +1829,10 @@ if _is_hip:
             assert (
                 scale.numel() == 1
             ), f"Expected scalar scale, got numel={scale.numel()}"
-            if _use_aiter:
+            if os.name == "nt":
+                quantized, _ = static_quant_fp8(input.contiguous(), scale)
+                output[: input.shape[0]].copy_(quantized)
+            elif _use_aiter:
                 static_per_tensor_quant(output, input, scale)
             elif _has_vllm:
                 torch.ops._C.static_scaled_fp8_quant(output, input, scale)

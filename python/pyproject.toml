@@ -35,7 +35,7 @@ dependencies = [
   "fastapi",
   "filelock",
   "flash-attn-4>=4.0.0b18 ; sys_platform != 'win32'",
-  "flashinfer_python[cu13]==0.6.17 ; sys_platform != 'win32'", # keep it aligned with jit-cache version in Dockerfile
+  "flashinfer_python[cu13]==0.6.17", # keep it aligned with jit-cache version in Dockerfile
   "gguf",
   "grpcio==1.82.1 ; sys_platform == 'win32' and platform_machine == 'ARM64'",
   "grpcio-health-checking==1.82.1 ; sys_platform == 'win32' and platform_machine == 'ARM64'",

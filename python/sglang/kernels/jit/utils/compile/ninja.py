@@ -58,7 +58,8 @@ def _arg(path: str) -> str:
     compiler as several arguments. Quote for the shell first, then escape what
     ninja still reads -- `$` is special everywhere in a build file.
     """
-    return shlex.quote(path).replace("$", "$$")
+    quoted = subprocess.list2cmdline([path]) if os.name == "nt" else shlex.quote(path)
+    return quoted.replace("$", "$$")
 
 
 def _quote_path_flags(flags: List[str]) -> List[str]:

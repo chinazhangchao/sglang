@@ -24,6 +24,13 @@ class TestNinjaExecutable(CustomTestCase):
             with patch.object(ninja.ninja_package, "BIN_DIR", temp_dir):
                 self.assertEqual(ninja._ninja_executable(), str(executable))
 
+    def test_quotes_windows_command_paths(self):
+        with patch.object(ninja.os, "name", "nt"):
+            self.assertEqual(
+                ninja._arg(r"C:\Program Files\NVIDIA\nvcc.exe"),
+                r'"C:\Program Files\NVIDIA\nvcc.exe"',
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

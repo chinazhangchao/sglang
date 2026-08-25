@@ -258,9 +258,15 @@ bool is_valid_config(
   return cache_size <= max_shared_mem;
 }
 
+#ifdef _WIN32
+#define SGL_MARLIN_ELSE_IF if
+#else
+#define SGL_MARLIN_ELSE_IF else if
+#endif
+
 #define _GET_IF(                                                                                                       \
     W_TYPE, THREAD_M_BLOCKS, THREAD_N_BLOCKS, THREAD_K_BLOCKS, M_BLOCK_SIZE_8, GROUP_BLOCKS, NUM_THREADS, IS_ZP_FLOAT) \
-  else if (                                                                                                            \
+  SGL_MARLIN_ELSE_IF(                                                                                                  \
       q_type == W_TYPE && thread_m_blocks == THREAD_M_BLOCKS && thread_n_blocks == THREAD_N_BLOCKS &&                  \
       thread_k_blocks == THREAD_K_BLOCKS && m_block_size_8 == M_BLOCK_SIZE_8 && group_blocks == GROUP_BLOCKS &&        \
       num_threads == NUM_THREADS && is_zp_float == IS_ZP_FLOAT) {                                                      \

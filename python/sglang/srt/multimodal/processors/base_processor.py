@@ -346,7 +346,9 @@ class BaseMultimodalProcessor(ABC):
                 "auto" if requested_mm_processor_worker_num == 0 else "explicit",
             )
         cpu_worker_start_method = (
-            "spawn" if self.mm_feature_transport == "cuda_vmm" else "fork"
+            "spawn"
+            if os.name == "nt" or self.mm_feature_transport == "cuda_vmm"
+            else "fork"
         )
         self.cpu_executor = concurrent.futures.ProcessPoolExecutor(
             mp_context=mp.get_context(cpu_worker_start_method),

@@ -25,7 +25,6 @@ from sglang.srt.utils import (
     is_blackwell_supported,
     is_cpu,
     is_cuda,
-    is_flashinfer_available,
     is_hip,
     is_musa,
     is_npu,
@@ -47,8 +46,7 @@ _is_cpu_amx_available = cpu_has_amx_support()
 _is_xpu = is_xpu()
 
 if _is_cuda:
-    if is_flashinfer_available():
-        from flashinfer.prefill import cudnn_batch_prefill_with_kv_cache
+    from flashinfer.prefill import cudnn_batch_prefill_with_kv_cache
 
     from sglang.kernels.ops.attention.flash_attention import flash_attn_varlen_func
 
@@ -641,10 +639,8 @@ class VisionFlashInferAttention(nn.Module):
         self,
         **kwargs,
     ):
-        if not _is_cuda or not is_flashinfer_available():
-            raise RuntimeError(
-                "VisionFlashInferAttention requires CUDA and FlashInfer"
-            )
+        if not _is_cuda:
+            raise Exception("VisionFlashInferAttention is only available for cuda")
         super().__init__()
         self.workspace_buffer = (
             kwargs["workspace_buffer"] if "workspace_buffer" in kwargs else None

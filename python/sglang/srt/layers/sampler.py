@@ -22,13 +22,12 @@ from sglang.srt.utils.async_probe import sanitize_nan_logits
 from sglang.srt.utils.common import (
     get_bool_env_var,
     is_cuda,
-    is_flashinfer_available,
     is_hip,
     is_musa,
     is_npu,
 )
 
-if is_cuda() and is_flashinfer_available():
+if is_cuda():
     from flashinfer.sampling import (
         min_p_sampling_from_probs,
         top_k_top_p_sampling_from_probs,
