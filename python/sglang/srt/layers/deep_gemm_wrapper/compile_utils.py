@@ -1,4 +1,3 @@
-import fcntl
 import logging
 import math
 import os
@@ -9,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import torch
+from filelock import FileLock
 from tqdm import tqdm
 
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
@@ -132,12 +132,8 @@ def _local_rank_compile_lock(
     lock_dir = Path(os.environ["DG_JIT_CACHE_DIR"]) / "locks"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_path = lock_dir / f"{kernel_type.name}_n{n}_k{k}_g{num_groups}.lock"
-    with open(lock_path, "w") as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
+    with FileLock(lock_path):
+        yield
 
 
 # TODO improve code
