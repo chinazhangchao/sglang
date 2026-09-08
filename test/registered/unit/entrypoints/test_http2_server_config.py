@@ -7,7 +7,7 @@ from sglang.srt.utils.event_loop import EVENT_LOOP_CONFIG
 from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase
 
-register_cpu_ci(est_time=2, suite="base-a-test-cpu")
+register_cpu_ci(est_time=12, suite="base-a-test-cpu")
 
 
 @unittest.skipUnless(
@@ -33,9 +33,14 @@ class TestGranianHTTP2Config(CustomTestCase):
                 port=30000,
                 log_level="info",
                 http2_max_concurrent_streams=37,
+                http2_initial_connection_window_size=8 * 1024 * 1024,
             )
 
         self.assertEqual(configured["http2_settings"].max_concurrent_streams, 37)
+        self.assertEqual(
+            configured["http2_settings"].initial_connection_window_size,
+            8 * 1024 * 1024,
+        )
 
     def test_multi_worker_uses_platform_event_loop(self):
         configured = {}

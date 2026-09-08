@@ -72,14 +72,20 @@ set(GITHUB_ARTIFACTORY "github.com" CACHE STRING "GitHub mirror URL")
 find_package(Python COMPONENTS Interpreter Development.Module ${SKBUILD_SABI_COMPONENT} REQUIRED)
 
 # CXX
-set(SGL_KERNEL_CXX_STANDARD 17)
 if(MSVC)
     # Current Windows ARM64 PyTorch headers use C++20 features.
-    set(SGL_KERNEL_CXX_STANDARD 20)
+    set(DEFAULT_SGL_KERNEL_CXX_STANDARD 20)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/O2>)
 else()
+    set(DEFAULT_SGL_KERNEL_CXX_STANDARD 17)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
+set(
+    SGL_KERNEL_CXX_STANDARD
+    "${DEFAULT_SGL_KERNEL_CXX_STANDARD}"
+    CACHE STRING
+    "C++ standard used for host and CUDA compilation"
+)
 set(CMAKE_CXX_STANDARD ${SGL_KERNEL_CXX_STANDARD})
 set(CMAKE_CUDA_STANDARD ${SGL_KERNEL_CXX_STANDARD})
 
@@ -583,7 +589,7 @@ if (SGL_KERNEL_ENABLE_FA3)
         "-Xcompiler"
         "-fPIC"
         "-gencode=arch=compute_90a,code=sm_90a"
-        "-std=c++17"
+        "-std=c++${SGL_KERNEL_CXX_STANDARD}"
         "-DCUTE_USE_PACKED_TUPLE=1"
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
         "-DCUTLASS_VERSIONS_GENERATED"
@@ -678,7 +684,7 @@ if(SGL_KERNEL_BUILD_INFLLM)
 set(INFLLM_FLASH_CUDA_FLAGS
     "-DNDEBUG"
     "-O3"
-    "-std=c++17"
+    "-std=c++${SGL_KERNEL_CXX_STANDARD}"
     "-Xcompiler"
     "-fPIC"
     "-U__CUDA_NO_HALF_OPERATORS__"
